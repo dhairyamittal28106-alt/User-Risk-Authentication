@@ -1,6 +1,6 @@
 import streamlit as st
 
-# Must be the first streamlit command called on a page
+
 st.set_page_config(
     page_title="Auth Risk Engine",
     page_icon="🔐",
