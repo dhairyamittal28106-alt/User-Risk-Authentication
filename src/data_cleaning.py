@@ -1,26 +1,32 @@
 import pandas as pd
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 
+df = pd.read_csv("src/auth_authz_failures_dataset.csv")
 
-df=pd.read_csv("src/auth_authz_failures_dataset.csv")
-print(df.shape)
-df.info()
-print("Rows:",df.shape[0])
+columns_to_keep = [
+    "username", 
+    "ip_address", 
+    "location", 
+    "failed_attempts", 
+    "device_type", 
+    "browser", 
+    "mfa_enabled", 
+    "threat_level"
+]
 
-print("Columns:",df.shape[1])
+df = df[columns_to_keep]
 
-print(df.isnull().sum())
-df[df.isnull().any(axis=1)]
-df["failure_reason"] = df["failure_reason"].fillna("None")
-df["error_code"] = df["error_code"].fillna("None")
+df["username"] = df["username"].fillna("Unknown")
+df["ip_address"] = df["ip_address"].fillna("0.0.0.0")
+df["location"] = df["location"].fillna("Unknown")
+df["failed_attempts"] = df["failed_attempts"].fillna(0)
+df["device_type"] = df["device_type"].fillna("Unknown")
+df["browser"] = df["browser"].fillna("Unknown")
+df["mfa_enabled"] = df["mfa_enabled"].fillna(0)
+df["threat_level"] = df["threat_level"].fillna("Low")
 
-print("Duplicate rows:", df.duplicated().sum())
-df=df.drop("error_code", axis=1)
-df.head()
-print("Infinite values:", np.isinf(df.select_dtypes(include=[np.number])).sum().sum())
+df = df.drop_duplicates()
 
+df.to_csv("src/auth_authz_failures_dataset_cleaned.csv", index=False)
 
-
-df.to_csv("src/cleaned.csv", index=False)
+print("Cleaned file saved! Shape:", df.shape)
