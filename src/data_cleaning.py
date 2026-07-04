@@ -23,4 +23,4 @@ print("Infinite values:", np.isinf(df.select_dtypes(include=[np.number])).sum().
 
 
 
-df.to_csv("src/auth_authz_failures_dataset_cleaned.csv", index=False)
+df.to_csv("src/cleaned.csv", index=False)
