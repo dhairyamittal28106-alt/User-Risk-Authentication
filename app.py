@@ -1,157 +1,138 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
-import os
 
-np.NaN = np.nan
-
-st.set_page_config(
-    page_title="Auth Risk Engine",
-    page_icon="🔐",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-hide_streamlit_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+st.set_page_config(page_title="Auth Risk Engine", layout="wide")
 
 @st.cache_resource
 def load_ml_assets():
     try:
         model = joblib.load("src/authentication_model.pkl")
         encoders = joblib.load("src/label_encoders.pkl")
-        return model, encoders
-    except Exception:  
-        return None, None
+        target_le = joblib.load("src/target_encoder.pkl")
+        return model, encoders, target_le
+    except Exception:
+        return None, None, None
 
-@st.cache_data
-def load_dataset():
-    file_name = "auth_authz_failures_dataset_cleaned.csv"
-    possible_paths = [file_name, f"src/{file_name}", f"data/{file_name}", f"../{file_name}"]
-    for path in possible_paths:
-        if os.path.exists(path):
-            return pd.read_csv(path)
-    return None
-
-model, encoders = load_ml_assets()
-dataset = load_dataset()
+model, encoders, target_le = load_ml_assets()
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Select a Module:", ["🏠 Home & About", "🛡️ Live Threat Prediction", "📊 Analytics Dashboard"])
 
-st.sidebar.markdown("---")
-st.sidebar.info("Team: Ayush, Grusha, Dhairya")
-
 if page == "🏠 Home & About":
     st.title("🔐 User Authentication Risk Assessment Platform")
-    st.markdown("---")
-    
-    st.header("About the Project")
-    st.write("Welcome to the Auth Risk Engine. This platform uses Machine Learning to analyze login patterns, device footprints, and behavioral anomalies to detect and block malicious authentication attempts in real-time.")
-    
-    st.subheader("System Architecture")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.info("**Data Pipeline**\n\nCleans and processes raw authentication logs, handling missing values and scaling features.")
-    with col2:
-        st.success("**ML Engine**\n\nEvaluates login features against a trained ML model to predict threat levels.")
-    with col3:
-        st.warning("**Dashboard**\n\nProvides admins with real-time analytics, threat visualization, and manual prediction testing.")
+    st.write("This platform uses Machine Learning to analyze login patterns and detect threats.")
 
 elif page == "🛡️ Live Threat Prediction":
-    st.title("Live Threat Prediction Engine")
-    st.markdown("Enter login event details below to evaluate the risk score.")
+    st.title("🛡️ Live Threat Prediction")
+    st.markdown("Enter the connection details below to run a real-time risk assessment.")
     
     with st.form("prediction_form"):
-        st.subheader("User & Network Details")
-        col1, col2 = st.columns(2)
+        st.subheader("Target Profile")
         
+        # Use columns inside the form for a cleaner layout
+        col1, col2 = st.columns(2)
         with col1:
             username = st.text_input("Username", "admin_user")
             ip_address = st.text_input("IP Address", "192.168.1.1")
             location = st.selectbox("Location", ["Local", "Out of State", "International", "Known Bad Subnet"])
-            failed_attempts = st.slider("Recent Failed Attempts", 0, 10, 0)
+            mfa_enabled = st.checkbox("MFA Enabled", value=True)
             
         with col2:
             device_type = st.selectbox("Device Type", ["Desktop", "Mobile", "Tablet", "Unknown/Headless"])
             browser = st.selectbox("Browser", ["Chrome", "Safari", "Firefox", "Tor/Custom"])
-            mfa_enabled = st.checkbox("MFA Enabled on Account", value=True)
+            failed_attempts = st.slider("Recent Failed Attempts", 0, 10, 0)
             
-        submitted = st.form_submit_button("Run Risk Analysis")
-        
+        submitted = st.form_submit_button("Run Risk Analysis", use_container_width=True)
+
         if submitted:
             if model is None:
-                st.error("Cannot run prediction: ML model is missing or corrupted.")
-            elif dataset is None:
-                st.error("Cannot run prediction: Dataset is missing.")
+                st.error("ML model assets not found. Please train the model first.")
             else:
-                user_row = dataset[dataset['username'] == username]
+                # Add a simulated loading state for better UX
+                with st.spinner("Analyzing threat vectors against ML model..."):
+                    input_data = pd.DataFrame([{
+                        'username': username, 'ip_address': ip_address, 'location': location,
+                        'failed_attempts': int(failed_attempts), 'device_type': device_type,
+                        'browser': browser, 'mfa_enabled': int(mfa_enabled)
+                    }])
+
+                    for col in ["username", "ip_address", "location", "device_type", "browser"]:
+                        le = encoders[col]
+                        input_data[col] = input_data[col].apply(lambda x: le.transform([x])[0] if x in le.classes_ else 0)
+
+                    raw_pred = model.predict(input_data)[0]
+                    # Safely grab the numeric prediction
+                    numeric_risk = int(target_le.inverse_transform([raw_pred])[0])
                 
-                if user_row.empty:
-                    st.warning("User not found in database. Using baseline analysis.")
-                    input_data = {'username': username, 'ip_address': ip_address, 'location': location, 
-                                 'failed_attempts': int(failed_attempts), 'device_type': device_type, 
-                                 'browser': browser, 'mfa_enabled': int(mfa_enabled)}
+                # --- HEURISTIC RULES ENGINE (OVERRIDES ML) ---
+                # Force high risk for obvious threat vectors, regardless of what the ML thinks
+                override_reason = ""
+                if int(failed_attempts) >= 5:
+                    numeric_risk = max(numeric_risk, 9)
+                    override_reason = " (Brute Force Override)"
+                elif browser == "Tor/Custom":
+                    numeric_risk = max(numeric_risk, 8)
+                    override_reason = " (Anonymizer Network Override)"
+                # ---------------------------------------------
+                
+                st.toast('Analysis complete!', icon='✅')
+                st.markdown("---")
+                
+                # Map the numeric score (0-10) to a clear text label
+                if numeric_risk >= 8:
+                    st.error(f"🚨 **THREAT DETECTED: HIGH RISK** (Score: {numeric_risk}/10){override_reason}")
+                    st.info("Recommendation: Lock account and require password reset.")
+                elif numeric_risk >= 4:
+                    st.warning(f"⚠️ **SUSPICIOUS LOGIN: MEDIUM RISK** (Score: {numeric_risk}/10){override_reason}")
+                    st.info("Recommendation: Prompt for additional MFA verification.")
                 else:
-                    input_data = user_row.iloc[0].to_dict()
-                    input_data.update({'ip_address': ip_address, 'location': location, 
-                                      'failed_attempts': int(failed_attempts), 'device_type': device_type, 
-                                      'browser': browser, 'mfa_enabled': int(mfa_enabled)})
-                
-                input_df = pd.DataFrame([input_data])
-                
-                expected_cols = [
-                    'user_id', 'username', 'ip_address', 'device_type', 'os_type', 'browser', 
-                    'location', 'login_method', 'success', 'failure_reason', 'auth_type', 
-                    'account_status', 'failed_attempts', 'mfa_enabled', 'token_expired', 
-                    'session_duration', 'password_age_days', 'role', 'privilege_level', 
-                    'suspicious_activity', 'threat_level', 'error_code', 'system_component'
-                ]
-                
-                for col in expected_cols:
-                    if col not in input_df.columns:
-                        input_df[col] = 0 if col in ['failed_attempts', 'mfa_enabled', 'success', 'token_expired', 'session_duration', 'password_age_days', 'suspicious_activity'] else "Unknown"
-                
-                input_df = input_df[expected_cols]
-                
-                try:
-                    for col in input_df.select_dtypes(include=['object']).columns:
-                        input_df[col] = input_df[col].astype("category")
-                    
-                    prediction = model.predict(input_df)[0]
-                    st.markdown("---")
-                    st.subheader("Analysis Results")
-                    if prediction in ["High", 1, True]:
-                        st.error(f"🚨 **THREAT DETECTED!** Model Prediction: {prediction}")
-                    else:
-                        st.success(f"✅ **SAFE LOGIN.** Model Prediction: {prediction}")
-                except Exception as e:
-                    st.error(f"Error during prediction: {e}")
+                    st.success(f"✅ **SAFE LOGIN: LOW RISK** (Score: {numeric_risk}/10)")
 
 elif page == "📊 Analytics Dashboard":
-    st.title("Admin Analytics Dashboard")
-    st.markdown("Overview of recent authentication events and system threats.")
+    st.title("📊 Admin Analytics Dashboard")
+    st.write("Overview of system threats and model explainability.")
     
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Logins (24h)", "12,450", "+15%")
-    col2.metric("Failed Attempts", "842", "-5%")
-    col3.metric("High Threats Blocked", "115", "+22%")
-    col4.metric("Active Sessions", "3,401", "Steady")
+    try:
+        df = pd.read_csv("src/auth_authz_failures_dataset_cleaned.csv")
+        total_logins_count = len(df)
+        
+        if pd.api.types.is_numeric_dtype(df['threat_level']):
+            threats_count = len(df[df['threat_level'] <= 5])
+        else:
+            threats_count = len(df[df['threat_level'].astype(str).str.lower().isin(['high', 'critical'])])
+            
+        total_logins_display = f"{total_logins_count:,}"
+        threats_display = f"{threats_count:,}"
+    except Exception as e:
+        total_logins_display = "Error"
+        threats_display = "Error"
+        df = None
+    
+    # Hero metrics
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Logins Monitored", total_logins_display)
+    col2.metric("Threats Blocked", threats_display, delta="-2% this week", delta_color="inverse")
+    col3.metric("Model Status", "Optimized")
     
     st.markdown("---")
-    st.subheader("Threats Detected Over the Last 7 Days")
-    dates = pd.date_range(end=pd.Timestamp.today(), periods=7)
-    dummy_threat_data = pd.DataFrame({
-        "Low Risk": np.random.randint(50, 150, size=7),
-        "Medium Risk": np.random.randint(20, 80, size=7),
-        "High Risk": np.random.randint(5, 30, size=7)
-    }, index=dates)
     
-    st.area_chart(dummy_threat_data)
+    # Use Tabs to organize the layout cleanly
+    tab1, tab2 = st.tabs(["📉 Threat Breakdown", "🧠 ML Explainability (SHAP)"])
+    
+    with tab1:
+        st.subheader("Threats by Device Type")
+        if df is not None:
+            # Create a simple interactive bar chart using native Streamlit
+            device_counts = df['device_type'].value_counts()
+            st.bar_chart(device_counts)
+        else:
+            st.warning("Dataset not available to render charts.")
+            
+    with tab2:
+        st.subheader("Feature Importance")
+        st.write("This chart shows which features the AI relies on most to determine the threat level.")
+        try:
+            st.image("src/shap_summary.png", use_column_width=True)
+        except FileNotFoundError:
+            st.warning("SHAP plot not found. Please run the training script to generate it.")
