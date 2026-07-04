@@ -6,5 +6,6 @@ shap
 scikit-learn
 matplotlib
 seaborn
-
+numpy
+plotly
 
