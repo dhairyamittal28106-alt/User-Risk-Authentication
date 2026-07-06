@@ -5,4 +5,5 @@ import matplotlib.pyplot as plt
 
 df = pd.read_csv("src/auth_authz_failures_dataset.csv")
 
-print("Rows:", df.shape[0])
+y = df["success"]
+print(df["blocked"].value_counts(normalize=True))
