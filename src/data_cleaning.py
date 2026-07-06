@@ -1,32 +1,25 @@
 import pandas as pd
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 df = pd.read_csv("src/auth_authz_failures_dataset.csv")
 
-columns_to_keep = [
-    "username", 
-    "ip_address", 
-    "location", 
-    "failed_attempts", 
-    "device_type", 
-    "browser", 
-    "mfa_enabled", 
-    "threat_level"
-]
+print(df.shape)
+df.info()
+print("Rows:",df.shape[0])
 
-df = df[columns_to_keep]
+print("Columns:",df.shape[1])
 
-df["username"] = df["username"].fillna("Unknown")
-df["ip_address"] = df["ip_address"].fillna("0.0.0.0")
-df["location"] = df["location"].fillna("Unknown")
-df["failed_attempts"] = df["failed_attempts"].fillna(0)
-df["device_type"] = df["device_type"].fillna("Unknown")
-df["browser"] = df["browser"].fillna("Unknown")
-df["mfa_enabled"] = df["mfa_enabled"].fillna(0)
-df["threat_level"] = df["threat_level"].fillna("Low")
+print(df.describe())
+df.info()
 
-df = df.drop_duplicates()
+print("Duplicates:",df.duplicated().sum())
 
-df.to_csv("src/auth_authz_failures_dataset_cleaned.csv", index=False)
+print("Missing Values:",df.isnull().sum())
+print(df.dtypes)
+df["failure_reason"] = df["failure_reason"].fillna("Unknown")
+df["error_code"] = df["error_code"].fillna("Unknown")
 
-print("Cleaned file saved! Shape:", df.shape)
+df = df.drop(columns=["timestamp"])
+df.to_csv("src/cleaned_dataset.csv", index=False)
