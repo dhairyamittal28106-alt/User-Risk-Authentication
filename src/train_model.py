@@ -7,6 +7,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
+from catboost import CatBoostClassifier
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -23,28 +24,51 @@ import shap
 df = pd.read_csv("src/cleaned_dataset.csv")
 
 encoders = {}
-for col in ["username", "ip_address", "location", "device_type", "browser"]:
+
+categorical_cols = [
+    "username",
+    "ip_address",
+    "location",
+    "device_type",
+    "browser",
+    "login_method",
+    "auth_type",
+    "account_status",
+    "role"
+]
+
+for col in categorical_cols:
     le = LabelEncoder()
     df[col] = le.fit_transform(df[col].astype(str))
     encoders[col] = le
+
 joblib.dump(encoders, "src/label_encoders.pkl")
+
 
 target_le = LabelEncoder()
 df["threat_level"] = target_le.fit_transform(df["threat_level"])
 joblib.dump(target_le, "src/target_encoder.pkl")
 
 features = [
-    "username",
-    "ip_address",
-    "location",
     "failed_attempts",
     "device_type",
     "browser",
-    "mfa_enabled"
+    "location",
+    "mfa_enabled",
+    "login_method",
+    "auth_type",
+    "account_status",
+    "session_duration",
+    "password_age_days",
+    "role",
+    "privilege_level",
+    "suspicious_activity",
+    "token_expired"
 ]
 
 X = df[features]
-y = df["threat_level"]
+y = df["blocked"]
+
 #train-test split
 X_train,X_test,y_train,y_test=train_test_split(
     X,
@@ -56,7 +80,7 @@ X_train,X_test,y_train,y_test=train_test_split(
 
 #Starting model training
 print(".........Logistic Regression.........")
-lr_model=LogisticRegression(max_iter=1000)
+lr_model=LogisticRegression(max_iter=1000,class_weight="balanced")
 lr_model.fit(X_train,y_train)
 y_pred_lr=lr_model.predict(X_test)
 lr_pred = lr_model.predict(X_test)
@@ -67,13 +91,11 @@ lr_rec = recall_score(y_test, lr_pred, average='weighted')
 lr_f1 = f1_score(y_test, lr_pred, average='weighted')
 lr_auc = roc_auc_score(
     y_test,
-    lr_model.predict_proba(X_test),
-    multi_class='ovr'
+    lr_model.predict_proba(X_test)[:, 1]
 )
 
-
 print(".........Decision Tree.........")
-dt_model=DecisionTreeClassifier(random_state=42)
+dt_model=DecisionTreeClassifier(random_state=42,class_weight="balanced" )
 dt_model.fit(X_train,y_train)
 y_pred_dt=dt_model.predict(X_test)
 dt_pred = dt_model.predict(X_test)
@@ -84,14 +106,20 @@ dt_rec = recall_score(y_test, dt_pred, average='weighted')
 dt_f1 = f1_score(y_test, dt_pred, average='weighted')
 dt_auc = roc_auc_score(
     y_test,
-    dt_model.predict_proba(X_test),
-    multi_class='ovr'
+    dt_model.predict_proba(X_test)[:, 1]
 )
 
 print(".........Random Forest.........")
-rf_model=RandomForestClassifier(random_state=42)
-rf_model.fit(X_train,y_train)
-y_pred_rf=rf_model.predict(X_test)  
+from imblearn.over_sampling import SMOTE
+rf_model = RandomForestClassifier(
+    n_estimators=200,
+    random_state=42,
+    class_weight="balanced"
+)
+smote = SMOTE(random_state=42)
+
+X_train_sm, y_train_sm = smote.fit_resample(X_train, y_train)
+rf_model.fit(X_train_sm, y_train_sm)
 rf_pred = rf_model.predict(X_test)
 
 rf_acc = accuracy_score(y_test, rf_pred)
@@ -100,10 +128,8 @@ rf_rec = recall_score(y_test, rf_pred, average='weighted')
 rf_f1 = f1_score(y_test, rf_pred, average='weighted')
 rf_auc = roc_auc_score(
     y_test,
-    rf_model.predict_proba(X_test),
-    multi_class='ovr'
+    rf_model.predict_proba(X_test)[:, 1]
 )
-
 
 print(".........XGBoost.........")
 xgb_model=XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42)
@@ -117,10 +143,25 @@ xgb_rec = recall_score(y_test, xgb_pred, average='weighted')
 xgb_f1 = f1_score(y_test, xgb_pred, average='weighted')
 xgb_auc = roc_auc_score(
     y_test,
-    xgb_model.predict_proba(X_test),
-    multi_class='ovr'
+    xgb_model.predict_proba(X_test)[:, 1]   
 )
 
+print(".........CatBoost.........")
+cb_model = CatBoostClassifier(random_state=42, verbose=False)
+cb_model.fit(X_train, y_train)
+y_pred_cb = cb_model.predict(X_test)
+cb_pred = cb_model.predict(X_test)
+
+
+
+cb_acc = accuracy_score(y_test, cb_pred)
+cb_pre = precision_score(y_test, cb_pred, average='weighted')
+cb_rec = recall_score(y_test, cb_pred, average='weighted')
+cb_f1 = f1_score(y_test, cb_pred, average='weighted')
+cb_auc = roc_auc_score(
+    y_test,
+    cb_model.predict_proba(X_test)[:, 1]    
+)
 import pandas as pd
 
 comparison = pd.DataFrame({
@@ -128,56 +169,61 @@ comparison = pd.DataFrame({
         "Logistic Regression",
         "Decision Tree",
         "Random Forest",
-        "XGBoost"
+        "XGBoost",
+        "CatBoost"
     ],
-    "Accuracy": [lr_acc, dt_acc, rf_acc, xgb_acc],
-    "Precision": [lr_pre, dt_pre, rf_pre, xgb_pre],
-    "Recall": [lr_rec, dt_rec, rf_rec, xgb_rec],
-    "F1-Score": [lr_f1, dt_f1, rf_f1, xgb_f1],
-    "ROC-AUC": [lr_auc, dt_auc, rf_auc, xgb_auc]
+    "Accuracy": [lr_acc, dt_acc, rf_acc, xgb_acc, cb_acc],
+    "Precision": [lr_pre, dt_pre, rf_pre, xgb_pre, cb_pre],
+    "Recall": [lr_rec, dt_rec, rf_rec, xgb_rec, cb_rec],
+    "F1-Score": [lr_f1, dt_f1, rf_f1, xgb_f1, cb_f1],
+    "ROC-AUC": [lr_auc, dt_auc, rf_auc, xgb_auc, cb_auc]
 })
 
 print(comparison)
 print(">.............................................................................................")
-print("Starting Model Tuning & Optimization...")
 
+print("Starting Model Tuning & Optimization...")
 param_grid = {
-    'max_depth': [3, 5, 7, 9],
-    'learning_rate': [0.01, 0.1, 0.2],
-    'n_estimators': [50, 100, 200],
-    'subsample': [0.8, 1.0]
+    "n_estimators": [100, 200, 300],
+    "max_depth": [5, 10, 20, None],
+    "min_samples_split": [2, 5, 10],
+    "min_samples_leaf": [1, 2, 4],
+    "max_features": ["sqrt", "log2"],
+    "bootstrap": [True, False]
 }
 
-base_model = xgb_model
-
 tuned_model = RandomizedSearchCV(
-    estimator=base_model,
+    estimator=rf_model,
     param_distributions=param_grid,
     n_iter=10,
-    scoring='accuracy',
+    scoring="f1",
     cv=3,
+    random_state=42,
     verbose=1,
-    random_state=42
+    n_jobs=-1
 )
 
-tuned_model.fit(X, y)
-best_xgb = tuned_model.best_estimator_
+tuned_model.fit(X_train_sm, y_train_sm)
 
-print(f"\nBest Parameters Found: {tuned_model.best_params_}")
+best_rf = tuned_model.best_estimator_
 
-joblib.dump(best_xgb, "src/authentication_model.pkl")
+joblib.dump(best_rf, "src/authentication_model.pkl")
 print("Optimized model saved successfully!")
 
 print("\nCalculating Feature Importance & SHAP values...")
 
-importance = best_xgb.feature_importances_
-feat_imp_df = pd.DataFrame({'Feature': X.columns, 'Importance': importance}).sort_values(by='Importance', ascending=False)
-print("\n--- Basic Feature Importance ---")
+importance = best_rf.feature_importances_
+
+feat_imp_df = pd.DataFrame({
+    "Feature": X.columns,
+    "Importance": importance
+}).sort_values(by="Importance", ascending=False)
+
 print(feat_imp_df)
 
-explainer = shap.TreeExplainer(best_xgb)
-shap_values = explainer.shap_values(X)
+explainer = shap.TreeExplainer(best_rf)
 
+shap_values = explainer.shap_values(X)
 if len(shap_values.shape) == 3:
     shap_values = [shap_values[:, :, i] for i in range(shap_values.shape[2])]
 
@@ -186,3 +232,4 @@ shap.summary_plot(shap_values, X, show=False, plot_type="bar")
 plt.tight_layout()
 plt.savefig("src/shap_summary.png")
 print("\nSHAP summary plot saved as 'src/shap_summary.png'!")
+
