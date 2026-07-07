@@ -23,11 +23,8 @@ import shap
 
 df = pd.read_csv("src/cleaned_dataset.csv")
 
-encoders = {}
 
 categorical_cols = [
-    "username",
-    "ip_address",
     "location",
     "device_type",
     "browser",
@@ -36,18 +33,13 @@ categorical_cols = [
     "account_status",
     "role"
 ]
-
+encoders = {}
 for col in categorical_cols:
     le = LabelEncoder()
     df[col] = le.fit_transform(df[col].astype(str))
     encoders[col] = le
 
 joblib.dump(encoders, "src/label_encoders.pkl")
-
-
-target_le = LabelEncoder()
-df["threat_level"] = target_le.fit_transform(df["threat_level"])
-joblib.dump(target_le, "src/target_encoder.pkl")
 
 features = [
     "failed_attempts",
@@ -65,9 +57,10 @@ features = [
     "suspicious_activity",
     "token_expired"
 ]
-
+df["blocked"] = df["blocked"].astype(int)
 X = df[features]
 y = df["blocked"]
+
 
 #train-test split
 X_train,X_test,y_train,y_test=train_test_split(
@@ -78,11 +71,27 @@ X_train,X_test,y_train,y_test=train_test_split(
     stratify=y
 )
 
+from sklearn.preprocessing import StandardScaler
+
+numeric_cols = [
+    "failed_attempts",
+    "session_duration",
+    "password_age_days",
+    "privilege_level"
+]
+
+scaler = StandardScaler()
+X_train[numeric_cols] = scaler.fit_transform(X_train[numeric_cols])
+X_test[numeric_cols] = scaler.transform(X_test[numeric_cols])
+# Apply SMOTE
+from imblearn.over_sampling import SMOTE
+smote = SMOTE(random_state=42)
+X_train_sm, y_train_sm = smote.fit_resample(X_train, y_train)
+
 #Starting model training
 print(".........Logistic Regression.........")
-lr_model=LogisticRegression(max_iter=1000,class_weight="balanced")
-lr_model.fit(X_train,y_train)
-y_pred_lr=lr_model.predict(X_test)
+lr_model=LogisticRegression(max_iter=1000)
+lr_model.fit(X_train_sm, y_train_sm)
 lr_pred = lr_model.predict(X_test)
 
 lr_acc = accuracy_score(y_test, lr_pred)
@@ -94,10 +103,15 @@ lr_auc = roc_auc_score(
     lr_model.predict_proba(X_test)[:, 1]
 )
 
+
+print("\nClassification Report - Logistic Regression")
+print(classification_report(y_test, lr_pred))
+
+print("\nConfusion Matrix - Logistic Regression")
+print(confusion_matrix(y_test, lr_pred))
 print(".........Decision Tree.........")
-dt_model=DecisionTreeClassifier(random_state=42,class_weight="balanced" )
-dt_model.fit(X_train,y_train)
-y_pred_dt=dt_model.predict(X_test)
+dt_model=DecisionTreeClassifier(random_state=42)
+dt_model.fit(X_train_sm, y_train_sm)
 dt_pred = dt_model.predict(X_test)
 
 dt_acc = accuracy_score(y_test, dt_pred)
@@ -109,16 +123,20 @@ dt_auc = roc_auc_score(
     dt_model.predict_proba(X_test)[:, 1]
 )
 
+
+print("\nClassification Report - Decision Tree")
+print(classification_report(y_test, dt_pred))
+
+print("\nConfusion Matrix - Decision Tree")
+print(confusion_matrix(y_test, dt_pred))
 print(".........Random Forest.........")
-from imblearn.over_sampling import SMOTE
+
+
 rf_model = RandomForestClassifier(
     n_estimators=200,
     random_state=42,
-    class_weight="balanced"
+    
 )
-smote = SMOTE(random_state=42)
-
-X_train_sm, y_train_sm = smote.fit_resample(X_train, y_train)
 rf_model.fit(X_train_sm, y_train_sm)
 rf_pred = rf_model.predict(X_test)
 
@@ -131,10 +149,15 @@ rf_auc = roc_auc_score(
     rf_model.predict_proba(X_test)[:, 1]
 )
 
+
+print("\nClassification Report - Random Forest")
+print(classification_report(y_test, rf_pred))
+
+print("\nConfusion Matrix - Random Forest")
+print(confusion_matrix(y_test, rf_pred))
 print(".........XGBoost.........")
-xgb_model=XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42)
-xgb_model.fit(X_train,y_train)
-y_pred_xgb=xgb_model.predict(X_test)
+xgb_model=XGBClassifier(eval_metric='mlogloss', random_state=42)
+xgb_model.fit(X_train_sm, y_train_sm)
 xgb_pred = xgb_model.predict(X_test)
 
 xgb_acc = accuracy_score(y_test, xgb_pred)
@@ -146,13 +169,16 @@ xgb_auc = roc_auc_score(
     xgb_model.predict_proba(X_test)[:, 1]   
 )
 
+
+print("\nClassification Report - XGBoost")
+print(classification_report(y_test, xgb_pred))
+
+print("\nConfusion Matrix - XGBoost")
+print(confusion_matrix(y_test, xgb_pred))
 print(".........CatBoost.........")
 cb_model = CatBoostClassifier(random_state=42, verbose=False)
-cb_model.fit(X_train, y_train)
-y_pred_cb = cb_model.predict(X_test)
+cb_model.fit(X_train_sm, y_train_sm)
 cb_pred = cb_model.predict(X_test)
-
-
 
 cb_acc = accuracy_score(y_test, cb_pred)
 cb_pre = precision_score(y_test, cb_pred, average='weighted')
@@ -162,8 +188,13 @@ cb_auc = roc_auc_score(
     y_test,
     cb_model.predict_proba(X_test)[:, 1]    
 )
-import pandas as pd
 
+
+print("\nClassification Report - CatBoost")
+print(classification_report(y_test, cb_pred))
+
+print("\nConfusion Matrix - CatBoost")
+print(confusion_matrix(y_test, cb_pred))
 comparison = pd.DataFrame({
     "Model": [
         "Logistic Regression",
@@ -179,24 +210,34 @@ comparison = pd.DataFrame({
     "ROC-AUC": [lr_auc, dt_auc, rf_auc, xgb_auc, cb_auc]
 })
 
+comparison = comparison.sort_values(
+    by="Accuracy",
+    ascending=False
+)
+
 print(comparison)
+#comparison.to_csv("src/model_comparison.csv", index=False)
 print(">.............................................................................................")
 
-print("Starting Model Tuning & Optimization...")
+print("Starting CatBoost Model Tuning & Optimization...")
+
 param_grid = {
-    "n_estimators": [100, 200, 300],
-    "max_depth": [5, 10, 20, None],
-    "min_samples_split": [2, 5, 10],
-    "min_samples_leaf": [1, 2, 4],
-    "max_features": ["sqrt", "log2"],
-    "bootstrap": [True, False]
+    "iterations": [100, 200, 300],
+    "learning_rate": [0.01, 0.05, 0.1],
+    "depth": [4, 6, 8, 10],
+    "l2_leaf_reg": [1, 3, 5, 7, 9],
+    "border_count": [32, 64, 128],
+    "bagging_temperature": [0, 1, 3, 5]
 }
 
 tuned_model = RandomizedSearchCV(
-    estimator=rf_model,
+    estimator=CatBoostClassifier(
+        random_state=42,
+        verbose=False
+    ),
     param_distributions=param_grid,
     n_iter=10,
-    scoring="f1",
+    scoring="f1_weighted",
     cv=3,
     random_state=42,
     verbose=1,
@@ -205,14 +246,38 @@ tuned_model = RandomizedSearchCV(
 
 tuned_model.fit(X_train_sm, y_train_sm)
 
-best_rf = tuned_model.best_estimator_
+best_cb = tuned_model.best_estimator_
 
-joblib.dump(best_rf, "src/authentication_model.pkl")
+best_pred = best_cb.predict(X_test)
+
+print("\nOptimized CatBoost")
+print(classification_report(y_test, best_pred))
+
+print("\nConfusion Matrix")
+print(confusion_matrix(y_test, best_pred))
+
+print("Accuracy:", accuracy_score(y_test, best_pred))
+print("Precision:", precision_score(y_test, best_pred, average="weighted"))
+print("Recall:", recall_score(y_test, best_pred, average="weighted"))
+print("F1 Score:", f1_score(y_test, best_pred, average="weighted"))
+print("ROC-AUC:", roc_auc_score(y_test, best_cb.predict_proba(X_test)[:, 1]))
+
+print("\nBest Parameters:")
+print(tuned_model.best_params_)
+
+print("\nBest CV F1:")
+print(tuned_model.best_score_)
+
+# Save model
+joblib.dump(best_cb, "src/authentication_model.pkl")
+
 print("Optimized model saved successfully!")
+
+
 
 print("\nCalculating Feature Importance & SHAP values...")
 
-importance = best_rf.feature_importances_
+importance = best_cb.feature_importances_
 
 feat_imp_df = pd.DataFrame({
     "Feature": X.columns,
@@ -221,15 +286,25 @@ feat_imp_df = pd.DataFrame({
 
 print(feat_imp_df)
 
-explainer = shap.TreeExplainer(best_rf)
+feat_imp_df.to_csv("src/feature_importance.csv", index=False)
 
-shap_values = explainer.shap_values(X)
-if len(shap_values.shape) == 3:
-    shap_values = [shap_values[:, :, i] for i in range(shap_values.shape[2])]
 
-plt.figure(figsize=(10, 6))
-shap.summary_plot(shap_values, X, show=False, plot_type="bar")
-plt.tight_layout()
-plt.savefig("src/shap_summary.png")
-print("\nSHAP summary plot saved as 'src/shap_summary.png'!")
 
+explainer = shap.TreeExplainer(best_cb)
+
+shap_values = explainer.shap_values(X_test)
+
+if isinstance(shap_values, list):
+    shap_values = shap_values[1]
+
+print("SHAP values calculated successfully!")
+
+shap.summary_plot(shap_values, X_test, show=False)
+plt.savefig("src/shap_summary.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
+plt.savefig("src/shap_bar.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+print("SHAP plots saved successfully!")
