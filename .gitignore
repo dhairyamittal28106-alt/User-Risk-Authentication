@@ -4,4 +4,4 @@ __pycache__/
 data/
 *.csv
 .env
-
+catboost_info/
