@@ -164,7 +164,6 @@ if submitted:
     if numeric_risk >= 8:
         st.error(f"🚨 HIGH RISK - Risk Score: {numeric_risk}/10{override_text}")
         st.info("Recommendation: Lock the account and require password reset.")
-        st.balloons()
     elif numeric_risk >= 4:
         st.warning(f"⚠️ MEDIUM RISK - Risk Score: {numeric_risk}/10{override_text}")
         st.info("Recommendation: Require MFA verification.")

@@ -1,12 +1,45 @@
 import streamlit as st
+import os
+import time
+import pandas as pd
+import joblib
 from utils import inject_custom_css
-inject_custom_css()
+
 st.set_page_config(
-    page_title="Home Hub",
-    page_icon="🏠",
+    page_title="Home Hub", 
+    page_icon="🏠", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+inject_custom_css()
+
+start_time = time.perf_counter()
+model_path = os.path.join("src", "authentication_model.pkl")
+
+if os.path.exists(model_path):
+    try:
+        model = joblib.load(model_path)
+        model_status = "Online"
+    except Exception:
+        model_status = "Error"
+else:
+    model_status = "Offline"
+
+end_time = time.perf_counter()
+latency_ms = max(1, int((end_time - start_time) * 1000))
+
+data_path = os.path.join("src", "cleaned_dataset.csv")
+if os.path.exists(data_path):
+    try:
+        total_rows = len(pd.read_csv(data_path, usecols=[0]))
+        logs_display = f"{total_rows:,}"
+    except Exception:
+        logs_display = "Error"
+else:
+    logs_display = "File Missing"
+
+active_rules = 4
 
 st.toast('System Online. AI Models Synchronized.', icon='⚡')
 
@@ -18,11 +51,11 @@ st.divider()
 st.subheader("Live System Telemetry")
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.metric(label="Active ML Models", value="CatBoost", delta="Online & Syncing")
+    st.metric(label="Historical Logs Analyzed", value=logs_display, delta="src/cleaned_dataset.csv")
 with c2:
-    st.metric(label="Threat Overrides", value="Armed", delta="Rules Enforced", delta_color="off")
+    st.metric(label="Active Security Rules", value=active_rules, delta="Hardcoded Overrides", delta_color="off")
 with c3:
-    st.metric(label="API Latency", value="24ms", delta="-2ms", delta_color="inverse")
+    st.metric(label="Model Load Latency", value=f"{latency_ms} ms", delta="Real-time disk I/O", delta_color="inverse")
 
 st.divider()
 
@@ -56,4 +89,4 @@ with col2:
 
 st.divider()
 
-st.info("**Launch Sequence:** Select **Live Risk Prediction** from the sidebar to analyze a login vector.")
+st.info("**Launch Sequence:** Select **Prediction** from the sidebar to analyze a login vector.")
