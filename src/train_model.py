@@ -25,7 +25,7 @@ df = pd.read_csv("src/cleaned_dataset.csv")
 
 
 categorical_cols = [
-    "location",
+     "location",
     "device_type",
     "browser",
     "login_method",
@@ -40,22 +40,14 @@ for col in categorical_cols:
     encoders[col] = le
 
 joblib.dump(encoders, "src/label_encoders.pkl")
-
 features = [
-    "failed_attempts",
+      "failed_attempts",
     "device_type",
     "browser",
     "location",
     "mfa_enabled",
     "login_method",
-    "auth_type",
-    "account_status",
-    "session_duration",
-    "password_age_days",
-    "role",
-    "privilege_level",
-    "suspicious_activity",
-    "token_expired"
+    "role"
 ]
 df["blocked"] = df["blocked"].astype(int)
 X = df[features]
@@ -74,10 +66,7 @@ X_train,X_test,y_train,y_test=train_test_split(
 from sklearn.preprocessing import StandardScaler
 
 numeric_cols = [
-    "failed_attempts",
-    "session_duration",
-    "password_age_days",
-    "privilege_level"
+    "failed_attempts"
 ]
 
 scaler = StandardScaler()
