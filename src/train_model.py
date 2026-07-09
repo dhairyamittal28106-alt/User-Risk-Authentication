@@ -25,7 +25,7 @@ df = pd.read_csv("src/cleaned_dataset.csv")
 
 
 categorical_cols = [
-    "location",
+     "location",
     "device_type",
     "browser",
     "login_method",
@@ -40,9 +40,8 @@ for col in categorical_cols:
     encoders[col] = le
 
 joblib.dump(encoders, "src/label_encoders.pkl")
-
 features = [
-    "failed_attempts",
+      "failed_attempts",
     "device_type",
     "browser",
     "location",
