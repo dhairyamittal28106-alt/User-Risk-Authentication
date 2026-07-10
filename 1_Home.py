@@ -43,7 +43,7 @@ active_rules = 4
 
 st.toast('System Online. AI Models Synchronized.', icon='⚡')
 
-st.markdown('<h1 class="gradient-text">Auth Risk Engine</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="gradient-text">Risk Shield </h1>', unsafe_allow_html=True)
 st.markdown('<div class="sub-text">Next-gen machine learning for real-time identity threat detection.</div>', unsafe_allow_html=True)
 
 st.divider()
