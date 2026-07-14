@@ -3,12 +3,9 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-
-# Load Dataset
 df = pd.read_csv("src/auth_authz_failures_dataset.csv")
 
 
-# 1. Login Success vs Failure
 print(df["success"].value_counts())
 
 plt.figure(figsize=(6,4))
@@ -18,8 +15,6 @@ plt.tight_layout()
 plt.show()
 
 
-
-# 2. Threat Level Distribution
 print(df["threat_level"].value_counts())
 
 plt.figure(figsize=(7,4))
@@ -34,9 +29,6 @@ plt.tight_layout()
 plt.show()
 
 
-
-# 3. Suspicious Activity Analysis
-
 plt.figure(figsize=(6,4))
 sns.countplot(
     x="suspicious_activity",
@@ -47,9 +39,6 @@ plt.title("Suspicious Activity Analysis")
 plt.tight_layout()
 plt.show()
 
-
-
-# 4. Device Type Distribution
 
 plt.figure(figsize=(7,4))
 
@@ -64,9 +53,6 @@ plt.tight_layout()
 plt.show()
 
 
-
-# 5. Failed Login Attempts Distribution
-
 plt.figure(figsize=(7,4))
 
 sns.histplot(
@@ -79,9 +65,6 @@ plt.tight_layout()
 plt.show()
 
 
-
-# 6. MFA Enabled vs Threat Level
-
 plt.figure(figsize=(7,4))
 
 sns.countplot(
@@ -93,12 +76,6 @@ sns.countplot(
 plt.title("MFA Impact on Threat Level")
 plt.tight_layout()
 plt.show()
-
-
-
-
-
-# 7 Feature Correlation Heatmap
 
 plt.figure(figsize=(12,7))
 
