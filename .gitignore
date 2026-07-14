@@ -1,7 +1,15 @@
 *.pkl
+!src/authentication_model.pkl
+!src/label_encoders.pkl
+!src/target_encoder.pkl
 __pycache__/
 .streamlit/
+!.streamlit/
+!.streamlit/config.toml
+!.streamlit/secrets.toml.example
 data/
 *.csv
+!src/cleaned_dataset.csv
+!src/feature_importance.csv
 .env
 catboost_info/
