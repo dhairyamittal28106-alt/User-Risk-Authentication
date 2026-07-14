@@ -3,6 +3,7 @@ import hmac
 import os
 from pathlib import Path
 
+import streamlit as st
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
@@ -26,10 +27,24 @@ def load_env_file() -> None:
 
 load_env_file()
 
-MONGODB_URI = os.environ.get("MONGODB_URI", "")
-DB_NAME = os.environ.get("MONGODB_DB_NAME", "RiskShieldCDAC")
-USERS_COLLECTION = os.environ.get("MONGODB_USERS_COLLECTION", "users")
-AUTH_SECRET = os.environ.get("AUTH_SECRET", "change-this-local-secret")
+
+def get_setting(name: str, default: str = "") -> str:
+    value = os.environ.get(name)
+    if value:
+        return value
+
+    try:
+        secret_value = st.secrets.get(name)
+    except Exception:
+        secret_value = None
+
+    return str(secret_value or default)
+
+
+MONGODB_URI = get_setting("MONGODB_URI")
+DB_NAME = get_setting("MONGODB_DB_NAME", "RiskShieldCDAC")
+USERS_COLLECTION = get_setting("MONGODB_USERS_COLLECTION", "users")
+AUTH_SECRET = get_setting("AUTH_SECRET", "change-this-local-secret")
 
 
 def get_users_collection():
