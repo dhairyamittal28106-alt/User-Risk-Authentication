@@ -3,6 +3,7 @@ import joblib
 import pandas as pd
 import streamlit as st
 import time
+import streamlit.components.v1 as components
 from utils import inject_custom_css
 inject_custom_css()
 
@@ -73,8 +74,12 @@ def decode_risk_score(raw_prediction, target_encoder):
         return int(raw_prediction)
 
 def get_viewer_ip():
+    query_ip = st.query_params.get("client_ip")
+    if query_ip:
+        return str(query_ip).split(",")[0].strip()
+
     ip_address = getattr(st.context, "ip_address", None)
-    if ip_address:
+    if ip_address and str(ip_address) not in ["127.0.0.1", "::1", "::ffff:127.0.0.1"]:
         return str(ip_address).split(",")[0].strip()
 
     headers = getattr(st.context, "headers", {})
@@ -85,11 +90,35 @@ def get_viewer_ip():
 
     return "192.168.1.1"
 
+def detect_browser_ip():
+    components.html(
+        """
+        <script>
+        (async () => {
+            try {
+                const response = await fetch("https://api.ipify.org?format=json");
+                const data = await response.json();
+                const ip = data.ip;
+                const parentUrl = new URL(window.parent.location.href);
+                if (ip && parentUrl.searchParams.get("client_ip") !== ip) {
+                    parentUrl.searchParams.set("client_ip", ip);
+                    window.parent.history.replaceState({}, "", parentUrl.toString());
+                    window.parent.location.reload();
+                }
+            } catch (error) {}
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
 model, encoders, target_encoder = load_ml_assets()
 
 st.title("🔮 Live Risk Prediction")
 st.markdown("Enter the login details below to run a real-time risk assessment.")
 
+detect_browser_ip()
 default_ip_address = get_viewer_ip()
 
 with st.form("prediction_form"):
