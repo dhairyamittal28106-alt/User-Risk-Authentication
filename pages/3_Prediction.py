@@ -3,6 +3,7 @@ import joblib
 import pandas as pd
 import streamlit as st
 import time
+import urllib.request
 from utils import inject_custom_css
 inject_custom_css()
 
@@ -72,10 +73,20 @@ def decode_risk_score(raw_prediction, target_encoder):
     except Exception:
         return int(raw_prediction)
 
+@st.cache_data(ttl=300)
+def fetch_public_ip():
+    try:
+        with urllib.request.urlopen("https://api.ipify.org", timeout=3) as response:
+            return response.read().decode("utf-8").strip()
+    except Exception:
+        return "192.168.1.1"
+
 model, encoders, target_encoder = load_ml_assets()
 
 st.title("🔮 Live Risk Prediction")
 st.markdown("Enter the login details below to run a real-time risk assessment.")
+
+default_ip_address = fetch_public_ip()
 
 with st.form("prediction_form"):
     st.subheader("Login Attempt")
@@ -83,8 +94,8 @@ with st.form("prediction_form"):
     col1, col2 = st.columns(2)
 
     with col1:
-        username = st.text_input("Username", "admin_user")
-        ip_address = st.text_input("IP Address", "192.168.1.1")
+        username = st.text_input("Username", value=st.session_state.get("username", "admin_user"))
+        ip_address = st.text_input("IP Address", value=default_ip_address)
         location = st.selectbox("Location", ["Local", "Out of State", "International", "Known Bad Subnet"])
         mfa_enabled = st.checkbox("MFA Enabled", value=True)
 

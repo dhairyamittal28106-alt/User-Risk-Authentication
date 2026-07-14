@@ -53,8 +53,6 @@ df["blocked"] = df["blocked"].astype(int)
 X = df[features]
 y = df["blocked"]
 
-
-#train-test split
 X_train,X_test,y_train,y_test=train_test_split(
     X,
     y,
@@ -72,12 +70,10 @@ numeric_cols = [
 scaler = StandardScaler()
 X_train[numeric_cols] = scaler.fit_transform(X_train[numeric_cols])
 X_test[numeric_cols] = scaler.transform(X_test[numeric_cols])
-# Apply SMOTE
 from imblearn.over_sampling import SMOTE
 smote = SMOTE(random_state=42)
 X_train_sm, y_train_sm = smote.fit_resample(X_train, y_train)
 
-#Starting model training
 print(".........Logistic Regression.........")
 lr_model=LogisticRegression(max_iter=1000)
 lr_model.fit(X_train_sm, y_train_sm)
@@ -205,7 +201,6 @@ comparison = comparison.sort_values(
 )
 
 print(comparison)
-#comparison.to_csv("src/model_comparison.csv", index=False)
 print(">.............................................................................................")
 
 print("Starting CatBoost Model Tuning & Optimization...")
@@ -257,7 +252,6 @@ print(tuned_model.best_params_)
 print("\nBest CV F1:")
 print(tuned_model.best_score_)
 
-# Save model
 joblib.dump(best_cb, "src/authentication_model.pkl")
 
 print("Optimized model saved successfully!")

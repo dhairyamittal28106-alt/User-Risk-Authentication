@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 
+
 def inject_custom_css():
     root_dir = os.path.dirname(os.path.abspath(__file__))
     css_file = os.path.join(root_dir, "style.css")
