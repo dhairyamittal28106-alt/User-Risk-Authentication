@@ -3,7 +3,6 @@ import joblib
 import pandas as pd
 import streamlit as st
 import time
-import urllib.request
 from utils import inject_custom_css
 inject_custom_css()
 
@@ -73,20 +72,25 @@ def decode_risk_score(raw_prediction, target_encoder):
     except Exception:
         return int(raw_prediction)
 
-@st.cache_data(ttl=300)
-def fetch_public_ip():
-    try:
-        with urllib.request.urlopen("https://api.ipify.org", timeout=3) as response:
-            return response.read().decode("utf-8").strip()
-    except Exception:
-        return "192.168.1.1"
+def get_viewer_ip():
+    ip_address = getattr(st.context, "ip_address", None)
+    if ip_address:
+        return str(ip_address).split(",")[0].strip()
+
+    headers = getattr(st.context, "headers", {})
+    for header_name in ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]:
+        header_value = headers.get(header_name)
+        if header_value:
+            return str(header_value).split(",")[0].strip()
+
+    return "192.168.1.1"
 
 model, encoders, target_encoder = load_ml_assets()
 
 st.title("🔮 Live Risk Prediction")
 st.markdown("Enter the login details below to run a real-time risk assessment.")
 
-default_ip_address = fetch_public_ip()
+default_ip_address = get_viewer_ip()
 
 with st.form("prediction_form"):
     st.subheader("Login Attempt")
